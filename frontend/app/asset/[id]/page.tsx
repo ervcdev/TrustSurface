@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { assets, quotes, tokens, issuers, ingestionRuns } from "@/lib/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { EvidenceCard } from "@/components/evidence-card";
+import { DispersionChart, ConcentrationChart } from "@/components/evidence-charts";
 import { computeAssetEvidence, buildUniverseShares } from "@/lib/evidence";
 import type { TokenRow, TradfiMarket, AssetInfo, AssetType } from "@/lib/evidence/types";
 
@@ -11,7 +12,7 @@ export const revalidate = 86400;
 
 // Pre-generate static params for the most-ranked assets at build time.
 // Returns [] when the DB is unreachable (build without DATABASE_URL) —
-/// on-demand rendering handles those paths at runtime.
+// on-demand rendering handles those paths at runtime.
 export async function generateStaticParams() {
   try {
     const rows = await db
@@ -38,7 +39,8 @@ export default async function AssetProfilePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id: assetId } = await params;
+  const { id } = await params;
+
   // Latest successful run
   let lastRun = null;
   try {
@@ -57,39 +59,39 @@ export default async function AssetProfilePage({
 
   const runId = lastRun.id;
 
-  // Asset + quote
-  const asset = await db
-    .select()
-    .from(assets)
-    .where(eq(assets.id, assetId))
-    .limit(1)
-    .then((r) => r[0] ?? null);
+  // These four queries don't depend on each other (only on `id` and
+  // `runId`, both already known) — run them in parallel. With Neon's HTTP
+  // driver every query is its own round trip, so sequential awaits stack
+  // latency; Promise.all pays it once. Trade-off: a nonexistent id now
+  // costs four cheap queries before the 404 instead of one — 404s are rare.
+  const [asset, quote, tokenRows, issuerRows] = await Promise.all([
+    db
+      .select()
+      .from(assets)
+      .where(eq(assets.id, id))
+      .limit(1)
+      .then((r) => r[0] ?? null),
+    db
+      .select()
+      .from(quotes)
+      .where(and(eq(quotes.assetId, id), eq(quotes.ingestionRunId, runId)))
+      .limit(1)
+      .then((r) => r[0] ?? null),
+    db
+      .select()
+      .from(tokens)
+      .where(and(eq(tokens.assetId, id), eq(tokens.ingestionRunId, runId))),
+    db
+      .select({
+        issuerId: issuers.issuerId,
+        issuerName: issuers.issuerName,
+        tokenCount: issuers.tokenCount,
+      })
+      .from(issuers)
+      .where(eq(issuers.ingestionRunId, runId)),
+  ]);
 
   if (!asset) notFound();
-
-  const quote = await db
-    .select()
-    .from(quotes)
-    .where(and(eq(quotes.assetId, assetId), eq(quotes.ingestionRunId, runId)))
-    .limit(1)
-    .then((r) => r[0] ?? null);
-
-  // Tokens
-  const tokenRows = await db
-    .select()
-    .from(tokens)
-    .where(and(eq(tokens.assetId, assetId), eq(tokens.ingestionRunId, runId)));
-
-  // Issuer universe — via the typed issuers table (was raw sql`issuers`
-  // before, despite the table already being imported and unused)
-  const issuerRows = await db
-    .select({
-      issuerId: issuers.issuerId,
-      issuerName: issuers.issuerName,
-      tokenCount: issuers.tokenCount,
-    })
-    .from(issuers)
-    .where(eq(issuers.ingestionRunId, runId));
 
   const universeShares = buildUniverseShares(issuerRows);
 
@@ -230,6 +232,13 @@ export default async function AssetProfilePage({
           explanation={ev.dispersion.computable ? ev.dispersion.explanation : undefined}
           nullReason={!ev.dispersion.computable ? ev.dispersion.reason : undefined}
           size="lg"
+          chartSlot={
+            <DispersionChart
+              data={normalTokens
+                .filter((t) => t.priceUsd !== null && t.symbol)
+                .map((t) => ({ symbol: t.symbol as string, price: t.priceUsd as number }))}
+            />
+          }
           raw={{
             endpoint: "/v5/real-world-assets/quotes/latest",
             params: { rwa_id: asset.id },
@@ -247,6 +256,13 @@ export default async function AssetProfilePage({
           explanation={ev.concentration.computable ? ev.concentration.explanation : undefined}
           nullReason={!ev.concentration.computable ? ev.concentration.reason : undefined}
           size="lg"
+          chartSlot={
+            <ConcentrationChart
+              data={normalTokens
+                .filter((t) => t.marketCapUsd !== null && t.marketCapUsd > 0 && t.symbol)
+                .map((t) => ({ symbol: t.symbol as string, marketCap: t.marketCapUsd as number }))}
+            />
+          }
           raw={{
             endpoint: "/v5/real-world-assets/quotes/latest",
             params: { rwa_id: asset.id },

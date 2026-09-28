@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { assets, quotes, tokens, issuers, ingestionRuns } from "@/lib/db/schema";
 import { desc, eq, and } from "drizzle-orm";
 import { AssetTable, type AssetRow } from "@/components/asset-table";
+import { CoverageSummary } from "@/components/coverage-summary";
 import { computeAssetEvidence, buildUniverseShares } from "@/lib/evidence";
 import type { TokenRow, TradfiMarket, AssetInfo, AssetType } from "@/lib/evidence/types";
 
@@ -51,34 +52,42 @@ export default async function ExplorePage() {
     );
   }
 
-  // Pull all assets with their latest quote. LEFT JOIN, not INNER — an
-  // asset that hasn't gotten a quote row yet (e.g. mid-ingestion failure)
-  // should still show up as "not computable," not disappear silently.
-  // That's the same "evidence, not omission" principle the cards follow.
-  const assetRows = await db
-    .select({
-      id: assets.id,
-      symbol: assets.symbol,
-      name: assets.name,
-      assetType: assets.assetType,
-      metadata: assets.metadata,
-      priceUsd: quotes.priceUsd,
-      marketCapUsd: quotes.marketCapUsd,
-      tradfiMarkets: quotes.tradfiMarkets,
-      quoteRaw: quotes.raw,
-      quoteCapturedAt: quotes.capturedAt,
-    })
-    .from(assets)
-    .leftJoin(
-      quotes,
-      and(eq(quotes.assetId, assets.id), eq(quotes.ingestionRunId, runId))
-    );
-
-  // Pull all tokens for this run
-  const tokenRows = await db
-    .select()
-    .from(tokens)
-    .where(eq(tokens.ingestionRunId, runId));
+  // Three independent queries (each only needs `runId`) — run them in
+  // parallel instead of stacking three sequential Neon round trips.
+  //
+  // assetRows uses LEFT JOIN, not INNER — an asset that hasn't gotten a
+  // quote row yet (e.g. mid-ingestion failure) should still show up as
+  // "not computable," not disappear silently. Same "evidence, not
+  // omission" principle the cards follow.
+  const [assetRows, tokenRows, issuerRows] = await Promise.all([
+    db
+      .select({
+        id: assets.id,
+        symbol: assets.symbol,
+        name: assets.name,
+        assetType: assets.assetType,
+        metadata: assets.metadata,
+        priceUsd: quotes.priceUsd,
+        marketCapUsd: quotes.marketCapUsd,
+        tradfiMarkets: quotes.tradfiMarkets,
+        quoteRaw: quotes.raw,
+        quoteCapturedAt: quotes.capturedAt,
+      })
+      .from(assets)
+      .leftJoin(
+        quotes,
+        and(eq(quotes.assetId, assets.id), eq(quotes.ingestionRunId, runId))
+      ),
+    db.select().from(tokens).where(eq(tokens.ingestionRunId, runId)),
+    db
+      .select({
+        issuerId: issuers.issuerId,
+        issuerName: issuers.issuerName,
+        tokenCount: issuers.tokenCount,
+      })
+      .from(issuers)
+      .where(eq(issuers.ingestionRunId, runId)),
+  ]);
 
   // Build token map: assetId → TokenRow[]
   const tokenMap = new Map<string, TokenRow[]>();
@@ -95,18 +104,6 @@ export default async function ExplorePage() {
     });
     tokenMap.set(t.assetId, list);
   }
-
-  // Build issuer universe shares — via the typed issuers table, not a raw
-  // sql`issuers` template (the earlier version imported the table and then
-  // never actually used it, which defeats the type safety entirely).
-  const issuerRows = await db
-    .select({
-      issuerId: issuers.issuerId,
-      issuerName: issuers.issuerName,
-      tokenCount: issuers.tokenCount,
-    })
-    .from(issuers)
-    .where(eq(issuers.ingestionRunId, runId));
 
   const universeShares = buildUniverseShares(issuerRows);
 
@@ -167,6 +164,19 @@ export default async function ExplorePage() {
     };
   });
 
+  // Universe-level coverage, computed from the same real rows the table
+  // renders — so the strip and the table can never disagree.
+  const coverageCards = [
+    "Price dispersion",
+    "Concentration",
+    "Issuer exposure",
+    "Metadata",
+    "Exchange coverage",
+  ].map((label, i) => ({
+    label,
+    computable: tableRows.filter((r) => r.coverage[i]).length,
+  }));
+
   return (
     <div>
       <div className="mb-8">
@@ -187,6 +197,7 @@ export default async function ExplorePage() {
           </a>
         </p>
       </div>
+      <CoverageSummary total={tableRows.length} cards={coverageCards} />
       <AssetTable data={tableRows} />
     </div>
   );

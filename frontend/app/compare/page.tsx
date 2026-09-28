@@ -19,6 +19,7 @@ async function getLatestRunId(): Promise<number | null> {
       .then((r) => r[0] ?? null);
     return row?.id ?? null;
   } catch {
+    // Build-time without DATABASE_URL, or DB unreachable — fallback UI.
     return null;
   }
 }
@@ -28,25 +29,26 @@ async function loadAssetForCompare(
   runId: number,
   universeShares: Map<string, IssuerUniverseShare>
 ) {
-  const asset = await db
-    .select()
-    .from(assets)
-    .where(eq(assets.id, id))
-    .limit(1)
-    .then((r) => r[0] ?? null);
+  // asset, quote and tokens only depend on `id`/`runId` — fetch in parallel.
+  const [asset, quote, tokenRows] = await Promise.all([
+    db
+      .select()
+      .from(assets)
+      .where(eq(assets.id, id))
+      .limit(1)
+      .then((r) => r[0] ?? null),
+    db
+      .select()
+      .from(quotes)
+      .where(and(eq(quotes.assetId, id), eq(quotes.ingestionRunId, runId)))
+      .limit(1)
+      .then((r) => r[0] ?? null),
+    db
+      .select()
+      .from(tokens)
+      .where(and(eq(tokens.assetId, id), eq(tokens.ingestionRunId, runId))),
+  ]);
   if (!asset) return null;
-
-  const quote = await db
-    .select()
-    .from(quotes)
-    .where(and(eq(quotes.assetId, id), eq(quotes.ingestionRunId, runId)))
-    .limit(1)
-    .then((r) => r[0] ?? null);
-
-  const tokenRows = await db
-    .select()
-    .from(tokens)
-    .where(and(eq(tokens.assetId, id), eq(tokens.ingestionRunId, runId)));
 
   const normalTokens: TokenRow[] = tokenRows.map((t) => ({
     cryptoId: t.cryptoId,
@@ -104,22 +106,24 @@ export default async function ComparePage({
 }: {
   searchParams: Promise<{ a?: string; b?: string }>;
 }) {
-  const { a: paramA, b: paramB } = await searchParams;
-  const runId = await getLatestRunId();
+  const { a, b } = await searchParams;
 
-  let assetOptions: { id: string; symbol: string; name: string; assetType: string }[] = [];
-  try {
-    assetOptions = await db
+  // The picker options don't depend on which run is latest — fetch both
+  // at once. (issuerRows below does depend on runId, so it stays after.)
+  // assetOptions guarded: without DATABASE_URL (build-time) the query
+  // throws — fall back to [] so the page still collects.
+  const [runId, assetOptions] = await Promise.all([
+    getLatestRunId(),
+    db
       .select({
         id: assets.id,
         symbol: assets.symbol,
         name: assets.name,
         assetType: assets.assetType,
       })
-      .from(assets);
-  } catch {
-    assetOptions = [];
-  }
+      .from(assets)
+      .catch(() => []),
+  ]);
 
   if (!runId) {
     return (
@@ -146,8 +150,8 @@ export default async function ComparePage({
   const universeShares = buildUniverseShares(issuerRows);
 
   const [assetA, assetB] = await Promise.all([
-    paramA ? loadAssetForCompare(paramA, runId, universeShares) : Promise.resolve(null),
-    paramB ? loadAssetForCompare(paramB, runId, universeShares) : Promise.resolve(null),
+    a ? loadAssetForCompare(a, runId, universeShares) : Promise.resolve(null),
+    b ? loadAssetForCompare(b, runId, universeShares) : Promise.resolve(null),
   ]);
 
   return (
@@ -166,8 +170,8 @@ export default async function ComparePage({
 
       <ComparePickers
         assets={assetOptions}
-        currentA={paramA ?? null}
-        currentB={paramB ?? null}
+        currentA={a ?? null}
+        currentB={b ?? null}
       />
 
       {assetA && assetB ? (
