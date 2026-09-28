@@ -1,0 +1,15 @@
+{
+  "asset": { "id": "9001", "symbol": "DEMO", "name": "Demo Tokenized Co.", "assetType": "stock" },
+  "tokens": [
+    { "cryptoId": 1001, "symbol": "DEMOa", "issuerId": "iss-1", "issuerName": "Meridian Custody", "priceUsd": 101.2, "marketCapUsd": 5000000, "volume24hUsd": 250000 },
+    { "cryptoId": 1002, "symbol": "DEMOb", "issuerId": "iss-1", "issuerName": "Meridian Custody", "priceUsd": 100.8, "marketCapUsd": 1200000, "volume24hUsd": 40000 },
+    { "cryptoId": 1003, "symbol": "DEMOc", "issuerId": "iss-2", "issuerName": "Northgate Digital Assets", "priceUsd": 99.5, "marketCapUsd": 800000, "volume24hUsd": 15000 }
+  ],
+  "info": { "website": "https://example.com", "employees": 1200, "founded": "1998-04-01", "industry": "Technology", "cik": "0001234567", "primaryExchange": "NASDAQ" },
+  "tradfiMarkets": [ { "exchangeId": 1, "exchangeName": "Kraken" }, { "exchangeId": 2, "exchangeName": "Coinbase" } ],
+  "issuersUniverse": [
+    { "issuerId": "iss-1", "issuerName": "Meridian Custody", "tokenCount": 42 },
+    { "issuerId": "iss-2", "issuerName": "Northgate Digital Assets", "tokenCount": 18 },
+    { "issuerId": "iss-3", "issuerName": "Vault Bridge", "tokenCount": 9 }
+  ]
+}

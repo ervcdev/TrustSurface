@@ -1,0 +1,13 @@
+{
+  "asset": { "id": "9002", "symbol": "GOLD-DEMO", "name": "Demo Tokenized Gold", "assetType": "commodity" },
+  "tokens": [
+    { "cryptoId": 2001, "symbol": "GLDx", "issuerId": "iss-3", "issuerName": "Vault Bridge", "priceUsd": 2650.0, "marketCapUsd": 300000, "volume24hUsd": 5000 }
+  ],
+  "info": { "website": "https://example-gold.com", "employees": null, "founded": null, "industry": null, "cik": null, "primaryExchange": null },
+  "tradfiMarkets": [],
+  "issuersUniverse": [
+    { "issuerId": "iss-1", "issuerName": "Meridian Custody", "tokenCount": 42 },
+    { "issuerId": "iss-2", "issuerName": "Northgate Digital Assets", "tokenCount": 18 },
+    { "issuerId": "iss-3", "issuerName": "Vault Bridge", "tokenCount": 9 }
+  ]
+}
