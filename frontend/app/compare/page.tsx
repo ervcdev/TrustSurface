@@ -30,6 +30,8 @@ async function loadAssetForCompare(
   universeShares: Map<string, IssuerUniverseShare>
 ) {
   // asset, quote and tokens only depend on `id`/`runId` — fetch in parallel.
+  // Explicit columns (no raw JSON): this view renders numbers only, and the
+  // per-card drawers live on the Profile page, not here.
   const [asset, quote, tokenRows] = await Promise.all([
     db
       .select()
@@ -38,13 +40,27 @@ async function loadAssetForCompare(
       .limit(1)
       .then((r) => r[0] ?? null),
     db
-      .select()
+      .select({
+        priceUsd: quotes.priceUsd,
+        marketCapUsd: quotes.marketCapUsd,
+        volume24hUsd: quotes.volume24hUsd,
+        tradfiMarkets: quotes.tradfiMarkets,
+        capturedAt: quotes.capturedAt,
+      })
       .from(quotes)
       .where(and(eq(quotes.assetId, id), eq(quotes.ingestionRunId, runId)))
       .limit(1)
       .then((r) => r[0] ?? null),
     db
-      .select()
+      .select({
+        cryptoId: tokens.cryptoId,
+        symbol: tokens.symbol,
+        issuerId: tokens.issuerId,
+        issuerName: tokens.issuerName,
+        priceUsd: tokens.priceUsd,
+        marketCapUsd: tokens.marketCapUsd,
+        volume24hUsd: tokens.volume24hUsd,
+      })
       .from(tokens)
       .where(and(eq(tokens.assetId, id), eq(tokens.ingestionRunId, runId))),
   ]);
@@ -97,7 +113,6 @@ async function loadAssetForCompare(
     capturedAt: quote?.capturedAt
       ? new Date(quote.capturedAt).toISOString()
       : new Date().toISOString(),
-    rawQuote: quote?.raw,
   };
 }
 

@@ -70,15 +70,28 @@ export default async function ExplorePage() {
         priceUsd: quotes.priceUsd,
         marketCapUsd: quotes.marketCapUsd,
         tradfiMarkets: quotes.tradfiMarkets,
-        quoteRaw: quotes.raw,
-        quoteCapturedAt: quotes.capturedAt,
       })
       .from(assets)
       .leftJoin(
         quotes,
         and(eq(quotes.assetId, assets.id), eq(quotes.ingestionRunId, runId))
       ),
-    db.select().from(tokens).where(eq(tokens.ingestionRunId, runId)),
+    // Explicit columns: tokens.raw (per-token API JSON) is dead weight here —
+    // this page only needs the normalized numerics. Smaller payloads =
+    // faster renders and fewer chances for a transient fetch to kill the page.
+    db
+      .select({
+        assetId: tokens.assetId,
+        cryptoId: tokens.cryptoId,
+        symbol: tokens.symbol,
+        issuerId: tokens.issuerId,
+        issuerName: tokens.issuerName,
+        priceUsd: tokens.priceUsd,
+        marketCapUsd: tokens.marketCapUsd,
+        volume24hUsd: tokens.volume24hUsd,
+      })
+      .from(tokens)
+      .where(eq(tokens.ingestionRunId, runId)),
     db
       .select({
         issuerId: issuers.issuerId,

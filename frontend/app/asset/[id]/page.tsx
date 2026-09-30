@@ -77,8 +77,19 @@ export default async function AssetProfilePage({
       .where(and(eq(quotes.assetId, id), eq(quotes.ingestionRunId, runId)))
       .limit(1)
       .then((r) => r[0] ?? null),
+    // Explicit columns: token rows only feed the normalized TokenRow shape —
+    // the raw API JSON is never rendered on this page (drawers use the
+    // quote/asset-level raw payloads, fetched above).
     db
-      .select()
+      .select({
+        cryptoId: tokens.cryptoId,
+        symbol: tokens.symbol,
+        issuerId: tokens.issuerId,
+        issuerName: tokens.issuerName,
+        priceUsd: tokens.priceUsd,
+        marketCapUsd: tokens.marketCapUsd,
+        volume24hUsd: tokens.volume24hUsd,
+      })
       .from(tokens)
       .where(and(eq(tokens.assetId, id), eq(tokens.ingestionRunId, runId))),
     db

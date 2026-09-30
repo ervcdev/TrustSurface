@@ -9,7 +9,6 @@ interface CompareAsset {
   name: string;
   evidence: AssetEvidence;
   capturedAt: string;
-  rawQuote: unknown;
 }
 
 interface CompareViewProps {
