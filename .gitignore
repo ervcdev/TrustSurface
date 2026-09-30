@@ -21,6 +21,7 @@
 
 # Build / misc
 /build
+/backend/coverage/
 .DS_Store
 *.pem
 .vercel
@@ -29,3 +30,4 @@ yarn-debug.log*
 yarn-error.log*
 *.tsbuildinfo
 frontend/next-env.d.ts
+.neon

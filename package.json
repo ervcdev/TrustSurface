@@ -12,10 +12,19 @@
     "start": "npm run start --workspace=frontend",
     "lint": "npm run lint --workspace=frontend",
     "test": "npm run test --workspace=backend",
+    "test:coverage": "npm run test:coverage --workspace=backend",
     "test:watch": "npm run test:watch --workspace=backend",
+    "check:unused": "node ./node_modules/knip/bin/knip.js",
     "gate": "npm run gate --workspace=backend",
     "db:generate": "npm run db:generate --workspace=backend",
     "db:push": "npm run db:push --workspace=backend",
     "db:studio": "npm run db:studio --workspace=backend"
+  },
+  "devDependencies": {
+    "knip": "^5.88.1"
+  },
+  "dependencies": {
+    "@neon/config": "^1.8.3",
+    "@neon/env": "^1.4.8"
   }
 }
