@@ -5,9 +5,12 @@ import { fetchAssetList, fetchInfo, fetchQuotes, fetchIssuersList } from "../cmc
 
 // Bounded to the top-ranked assets, not the full ~8,000-asset universe —
 // keeps one cron run inside a serverless function's execution window and
-// keeps daily credit usage predictable. Raise this once you've confirmed
-// your plan's max function duration comfortably covers a bigger batch.
-const ASSET_UNIVERSE_SIZE = 300;
+// keeps daily credit usage predictable. 200, not 250: assets/list rejects
+// limit > 250 with error 4001 (confirmed live 2026-09-30), and the day-one
+// gate proved 200 already yields 114 multi-token assets. Raise this only
+// once you've confirmed your plan's max function duration comfortably
+// covers a bigger batch — and never above 250 per call.
+const ASSET_UNIVERSE_SIZE = 200;
 const BATCH_SIZE = 50;
 
 function chunk<T>(arr: T[], size: number): T[][] {
